@@ -26,7 +26,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="example.cpp">
+    <ClCompile Include="queue_example.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
