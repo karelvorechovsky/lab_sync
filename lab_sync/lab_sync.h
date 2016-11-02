@@ -1,10 +1,8 @@
-#include <iostream>
 #include <memory>
 #include <thread>
 #include <mutex>
 #include <queue>
 #include <condition_variable>
-#include <assert.h>
 #include <algorithm>
 #include <set>
 
@@ -12,6 +10,14 @@
 
 #ifndef _LAB_SYNC_
 #define _LAB_SYNC_
+
+struct queue_status
+{
+	int size;
+	int p_read; 
+	int p_write; 
+	int max_size;
+};
 
 template<typename T>
 class lab_queue
@@ -47,13 +53,15 @@ public:
 	{
 	}
 	//get the queue status to see how many elements are in and how many readers & writers are pending
-	void get_status(int &size, int &p_read, int &p_write, int & max_size)
+	queue_status get_status()
 	{
 		std::unique_lock<std::mutex> data_lock(_data_lock);//lock data
-		size = _data.size();
-		p_read = _p_read;
-		p_write = _p_write;
-		max_size = _max_size;
+		queue_status stat;
+		stat.size = _data.size();
+		stat.p_read = _p_read;
+		stat.p_write = _p_write;
+		stat.max_size = _max_size;
+		return stat;
 	}
 	//push element into the very front of queue, so it gets dequeued first unless another element is pushed front
 	//return true on timeout, false otherwise
@@ -269,8 +277,9 @@ public:
 //it has it's own registration_queue, that every registered event gets pointer to, so it can notify the waiting register whenever new data is available
 //registration_queue is shared among all events that are registered to such register
 template<typename T>
-struct lab_register
+class lab_register
 {
+private:
 	//this is necessary for lab_register destructor so it removes queue to this register from all registered events
 	//also allows events unregistering programatically
 	struct event_ptr_comparator
@@ -283,7 +292,7 @@ struct lab_register
 	std::set<lab_event<T>*, event_ptr_comparator> registered_events;
 	//the register's queue
 	registration_queue<T> r_queue;
-
+public:
 	lab_register()
 	{
 	}

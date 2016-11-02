@@ -1,14 +1,67 @@
 #include "lab_sync.h"
+#include <iostream>
 
 #define IDLE_TIME rand() % 100
+
+struct thread_control
+{
+	bool terminate;
+};
+
+class task
+{
+private:
+	std::string description;
+public:
+	task(const std::string &desc) : description(desc)
+	{
+	}
+	~task()
+	{
+	}
+	virtual std::string get_description()
+	{
+		return description;
+	}
+	virtual void operator()(thread_control &thr_c)
+	{
+	}
+};
+
+class terminate : public task
+{
+public:
+	terminate() : task("terminator")
+	{
+	}
+	void operator()(thread_control &thr_c)
+	{
+		thr_c.terminate = true;
+	}
+};
+
+class work : public task
+{
+private:
+	int sleep_time_ms;
+public:
+	work(const int sleep) : task("work work"), sleep_time_ms(sleep)
+	{
+	}
+	void operator()(thread_control &thr)
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_ms));
+	}
+};
+
 
 //lock for cout not to overlap
 std::mutex glob_lock;
 
-void q_producer(lab_queue<int> *q, int in)
+void q_producer(lab_queue<int> *command_in, std::vector<lab_queue<int>> *consumers)
 { 
-	int my_in = in;
-	while (my_in)
+	int element = 0;
+	while (element != -1)
 	{
 		if (q->push_front(my_in, 50))
 		{
