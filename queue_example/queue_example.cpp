@@ -19,10 +19,10 @@ public:
 	task(const std::string &desc) : description(desc)
 	{
 	}
-	~task()
+	virtual ~task()
 	{
 	}
-	virtual std::string get_description()
+	std::string get_description() 
 	{
 		return description;
 	}
