@@ -1,5 +1,6 @@
 #include "..\lab_sync\lab_sync.h"
 #include <iostream>
+#include <conio.h>
 
 #define IDLE_TIME rand() % 100 //number from 0 to 99
 #define IDLE_SALT rand() % 10 //number from 0 to 9
@@ -31,10 +32,10 @@ public:
 	}
 };
 
-class terminate : public task
+class terminate_t : public task
 {
 public:
-	terminate() : task("terminator")
+	terminate_t() : task("terminator")
 	{
 	}
 	void operator()(thread_control &thr_c)
@@ -56,7 +57,6 @@ public:
 		std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_ms));
 	}
 };
-
 
 //lock for cout not to overlap
 std::mutex glob_lock;
@@ -103,6 +103,11 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 				delete element;
 			}
 		}
+		//once the for loop is over, notify all consumers to terminate
+		std::for_each(consumers->begin(), consumers->end(), [](lab_queue<task*>* curr)
+		{
+			curr->lossy_push_front(new terminate_t());
+		});
 	}
 	catch (const std::exception &e)
 	{
@@ -111,4 +116,68 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 	}
 }
 
-void q_consumer( )
+void q_consumer(lab_queue<task*> *command_in)
+{
+	try
+	{
+		task *element = nullptr;
+		int curr_size;
+		thread_control my_thread;
+		queue_status my_stat = { 0, 0, 0, 0 };
+		while (!my_thread.terminate)
+		{
+			command_in->pop_front(*&element, curr_size, -1); //wait for work
+			element->operator()(my_thread);
+			delete element;
+		}
+	}
+	catch (const std::exception &e)
+	{
+		std::unique_lock<std::mutex> lck(glob_lock);
+		std::cout << e.what() << std::endl;
+	}
+}
+
+int main()
+{
+	try
+	{
+		//init the command queue to producer
+		lab_queue<task*> command_q(-1);
+		std::vector<lab_queue<task*>> consumer_end;
+		std::vector<std::thread> consumers;
+		//init the queues to consumers
+		consumer_end.reserve(THR_CNT);
+		for (int i = 0; i < THR_CNT; i++)
+		{
+			consumer_end.push_back(lab_queue<task*>(-1));
+		}
+		//start consumers
+		consumers.reserve(THR_CNT);
+		std::for_each(consumer_end.begin(), consumer_end.end(), [&](lab_queue<task*> *curr)
+		{
+			consumers.push_back(std::thread(q_consumer, curr));
+		});
+		//start producer
+		std::thread producer_thr(q_producer, &command_q, &consumer_end);
+
+		//wait for user to hit a key
+		int i = _getch();
+
+		//after he pressed key, notify producer the program should end
+		command_q.push_back(new terminate_t(), -1);
+		//wait for the producer to join
+		producer_thr.join();
+		//and wait for the consumers to end as well
+		std::for_each(consumers.begin(), consumers.end(), [](std::thread *curr)
+		{
+			curr->join();
+		});
+		return 0;
+	}
+	catch (const std::exception &e)
+	{
+		std::unique_lock<std::mutex> lck(glob_lock);
+		std::cout << e.what() << std::endl;
+	}
+}
