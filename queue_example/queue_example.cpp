@@ -71,7 +71,6 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 		int rand_salt;
 		int control_wait = 0;
 		thread_control my_thread;
-		std::vector<lab_queue<task*>>::iterator cons_it;
 		queue_status my_stat = { 0, 0, 0, 0 };
 		while (!my_thread.terminate)
 		{
@@ -80,10 +79,7 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 				rand_wait = IDLE_TIME;
 				rand_salt = IDLE_SALT;
 				//get the thread with lowest work load
-				cons_it = std::min_element(consumers->begin(), consumers->end(), [](lab_queue<task*> *el1, lab_queue<task*> *el2)->bool
-				{
-					return (el1->get_status().size < el2->get_status().size);
-				});
+				
 				if (cons_it->get_status().size > 50) //if the thread with leats work has over 50 tasks, just skip sending data
 				{
 					std::unique_lock<std::mutex> lck(glob_lock);
@@ -104,9 +100,9 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 			}
 		}
 		//once the for loop is over, notify all consumers to terminate
-		std::for_each(consumers->begin(), consumers->end(), [](lab_queue<task*>* curr)
+		std::for_each(consumers->begin(), consumers->end(), [](lab_queue<task*> &curr)
 		{
-			curr->lossy_push_front(new terminate_t());
+			curr.lossy_push_front(new terminate_t());
 		});
 	}
 	catch (const std::exception &e)
@@ -154,9 +150,9 @@ int main()
 		}
 		//start consumers
 		consumers.reserve(THR_CNT);
-		std::for_each(consumer_end.begin(), consumer_end.end(), [&](lab_queue<task*> *curr)
+		std::for_each(consumer_end.begin(), consumer_end.end(), [&](lab_queue<task*> &curr)
 		{
-			consumers.push_back(std::thread(q_consumer, curr));
+			consumers.push_back(std::thread(q_consumer, &curr));
 		});
 		//start producer
 		std::thread producer_thr(q_producer, &command_q, &consumer_end);
@@ -169,9 +165,9 @@ int main()
 		//wait for the producer to join
 		producer_thr.join();
 		//and wait for the consumers to end as well
-		std::for_each(consumers.begin(), consumers.end(), [](std::thread *curr)
+		std::for_each(consumers.begin(), consumers.end(), [](std::thread &curr)
 		{
-			curr->join();
+			curr.join();
 		});
 		return 0;
 	}

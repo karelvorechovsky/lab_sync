@@ -52,6 +52,7 @@ public:
 	~lab_queue()
 	{
 	}
+	lab_queue(const lab_queue& other) = delete;
 	//get the queue status to see how many elements are in and how many readers & writers are pending
 	queue_status get_status()
 	{
@@ -168,7 +169,6 @@ public:
 		{
 			_wait.notify_one(); //notify 
 		}
-		return false;
 	}
 	//clears the queue data
 	//returns data back through std::move
