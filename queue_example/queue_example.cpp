@@ -69,13 +69,13 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 		int curr_size;
 		int rand_wait;
 		int rand_salt;
+		int control_wait = 0;
 		thread_control my_thread;
 		std::vector<lab_queue<task*>>::iterator cons_it;
 		queue_status my_stat = { 0, 0, 0, 0 };
 		while (!my_thread.terminate)
 		{
-			my_stat = command_in->get_status();
-			if (!my_stat.size)
+			if (command_in->pop_front(*&element, curr_size, control_wait)) //if the control queue times out, do your production duty
 			{
 				rand_wait = IDLE_TIME;
 				rand_salt = IDLE_SALT;
@@ -92,19 +92,15 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 				else //workers can still work
 				{
 					cons_it->push_back(new work(rand_wait * THR_CNT + rand_salt), -1); //give it work that takes (thread_count) longer than the producer will wait
+					//figure out how long to wait on the control queue before actually doing something, 
+					//we wait a little less to fill the consumers and actually start skipping data
+					control_wait = rand_wait - rand_salt; 
 				}
 			}
 			else
 			{
-				if (command_in->pop_front(*&element, curr_size, 0))
-				{
-					my_thread.terminate = true; //should never happen
-				}
-				else
-				{
-					element->operator()(my_thread);
-					delete element;
-				}
+				element->operator()(my_thread);
+				delete element;
 			}
 		}
 	}
@@ -114,3 +110,5 @@ void q_producer(lab_queue<task*> *command_in, std::vector<lab_queue<task*>> *con
 		std::cout << e.what() << std::endl;
 	}
 }
+
+void q_consumer( )
