@@ -36,6 +36,10 @@ private:
 	//number of writers waiting to insert into queue (they are blocked because the queue has reached maximum size)
 	int _p_write;
 	//helper class to make _p_read and _p_write variables modification exception safe
+	/// Private copy constructor.
+	lab_queue(const lab_queue&);
+	/// Private assignment operator.
+	lab_queue& operator=(const lab_queue&);
 	class _p_inc
 	{
 	private:
@@ -46,13 +50,13 @@ private:
 	};
 public:
 	//max_size <= 0 means unlimited
-	lab_queue(int max_size) : _max_size(max_size)
+	lab_queue(int max_size = -1) : _max_size(max_size)
 	{
 	}
 	~lab_queue()
 	{
 	}
-	lab_queue(const lab_queue& other) = delete;
+	//lab_queue(const lab_queue& other) = delete;
 	//get the queue status to see how many elements are in and how many readers & writers are pending
 	queue_status get_status()
 	{
