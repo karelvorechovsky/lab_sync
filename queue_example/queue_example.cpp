@@ -67,44 +67,36 @@ void q_producer(lab_queue<task*> *command_in, std::forward_list<lab_queue<task*>
 	try
 	{
 		task *element = nullptr;
+		task *cons_work = nullptr;
 		int curr_size;
 		int rand_wait;
 		int rand_salt;
 		int control_wait = 0;
 		thread_control my_thread;
 		queue_status my_stat = { 0, 0, 0, 0 };
-		std::vector<int> lengths;
-		std::vector<int>::iterator l_it;
-		lengths.reserve(THR_CNT);
+		std::forward_list<lab_queue<task*>>::iterator cons_it = consumers->begin();
 		while (!my_thread.terminate)
 		{
 			if (command_in->pop_front(*&element, curr_size, control_wait)) //if the control queue times out, do your production duty
 			{
 				rand_wait = IDLE_TIME;
 				rand_salt = IDLE_SALT;
-				//get the thread with lowest work load
-				lengths.clear();
-				std::for_each(consumers->begin(), consumers->end(), [&](lab_queue<task*> &curr)
+				//do circular work dispatch
+				cons_work = new work(rand_wait * THR_CNT);
+				if (cons_it->push_back(cons_work, 10))
 				{
-					lengths.push_back(curr.get_status().size);
-				});
-				l_it = std::min_element(lengths.begin(), lengths.end(), [](int &left, int &right)->bool
-				{
-					return (left < right);
-				});
-
-				if (consumers->at(*l_it).get_status().size > 50) //if the thread with leats work has over 50 tasks, just skip sending data
-				{
+					delete cons_work;
+					control_wait = 0;
 					std::unique_lock<std::mutex> lck(glob_lock);
-					std::cout << "all workers too busy, skipping data!" << std::endl;
+					std::cout << std::endl << "producer timed out!" << std::endl << std::endl;
 				}
-				else //workers can still work
+				else
 				{
-					consumers->at(*l_it).push_back(new work(rand_wait * THR_CNT + rand_salt), -1); //give it work that takes (thread_count) longer than the producer will wait
-					//figure out how long to wait on the control queue before actually doing something, 
-					//we wait a little less to fill the consumers and actually start skipping data
-					control_wait = rand_wait - rand_salt; 
+					++cons_it;
+					control_wait = rand_wait - rand_salt;
 				}
+				if (cons_it == consumers->end())
+					cons_it = consumers->begin();
 			}
 			else
 			{
@@ -158,7 +150,7 @@ int main()
 		//init the queues to consumers
 		for (int i = 0; i < THR_CNT; i++)
 		{
-			consumer_end.emplace_front(-1);
+			consumer_end.emplace_front(50);
 		}
 		//start consumers
 		consumers.reserve(THR_CNT);
