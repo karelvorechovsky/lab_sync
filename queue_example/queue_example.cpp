@@ -4,8 +4,8 @@
 #include <forward_list>
 #include <thread>
 
-#define PROD_TIMEOUT 50
-#define IDLE_TIME rand() % 100 //number from 0 to 99
+#define PROD_TIMEOUT 150
+#define IDLE_TIME rand() % 100 //number from 0 to 99, the thread can now wait (0 - 99) * 4
 #define IDLE_SALT rand() % 10 //number from 0 to 9
 #define THR_CNT 4 
 
@@ -87,29 +87,35 @@ void q_producer(lab_queue<task*> *command_in, std::forward_list<lab_queue<task*>
 		int control_wait = 0;
 		thread_control my_thread = { false };
 		queue_status my_stat = { 0, 0, 0, 0 };
-		std::forward_list<lab_queue<task*>>::iterator cons_it = consumers->begin();
+		std::vector<int> sizes;
+		std::vector<int>::iterator it_sizes;
+		std::forward_list<lab_queue<task*>>::iterator it_consumers;
+		sizes.reserve(THR_CNT);
 		while (!my_thread.terminate)
 		{
 			if (command_in->pop_front(*&element, curr_size, control_wait)) //if the control queue times out, do your production duty
 			{
+
 				rand_wait = IDLE_TIME;
 				rand_salt = IDLE_SALT;
-				//do circular work dispatch
+				sizes.clear();
+				for (auto& curr : *consumers)
+				{
+					sizes.emplace_back(curr.get_status().size);
+				}
+				it_sizes = std::min_element(sizes.begin(), sizes.end());
+				int steps_2_walk = it_sizes - sizes.begin();
+
+				it_consumers = std::next(consumers->begin(), steps_2_walk);
 				cons_work = new work(check_zero(rand_wait * THR_CNT));
-				if (cons_it->push_back(cons_work, PROD_TIMEOUT))
+				if (it_consumers->push_back(cons_work, PROD_TIMEOUT))
 				{
-					delete cons_work;
-					control_wait = 0;
 					std::unique_lock<std::mutex> lck(glob_lock);
-					std::cout << std::endl << "producer timed out!" << std::endl << std::endl;
+					std::cout << "producer timed out!" << std::endl;
+					delete cons_work;
 				}
-				else
-				{
-					++cons_it;
-					control_wait = check_zero(rand_wait - rand_salt);
-				}
-				if (cons_it == consumers->end())
-					cons_it = consumers->begin();
+
+				control_wait = check_zero(rand_wait - rand_salt);
 			}
 			else
 			{
@@ -150,10 +156,8 @@ void q_consumer(lab_queue<task*> *command_in)
 				{
 					std::unique_lock<std::mutex> lck(glob_lock);
 					//spit some stats
-					std::cout 
-						<< std::endl 
-						<< "thread:" << std::this_thread::get_id() << " has " << curr_size - 1 << " pending." << std::endl 
-						<< std::endl;
+					std::cout << "thread:" << std::this_thread::get_id() << " has " << curr_size << " pending." << std::endl;
+
 					counter = 0;
 				}
 				++counter;
@@ -171,6 +175,7 @@ int main()
 {
 	try
 	{
+		std::cout << "hit key to stop" << std::endl;
 		//init the command queue to producer
 		lab_queue<task*> command_q(-1);
 		std::forward_list<lab_queue<task*>> consumer_end;
