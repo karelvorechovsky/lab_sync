@@ -4,6 +4,7 @@
 #include <forward_list>
 #include <thread>
 
+#define PROD_TIMEOUT 50
 #define IDLE_TIME rand() % 100 //number from 0 to 99
 #define IDLE_SALT rand() % 10 //number from 0 to 9
 #define THR_CNT 4 
@@ -95,7 +96,7 @@ void q_producer(lab_queue<task*> *command_in, std::forward_list<lab_queue<task*>
 				rand_salt = IDLE_SALT;
 				//do circular work dispatch
 				cons_work = new work(check_zero(rand_wait * THR_CNT));
-				if (cons_it->push_back(cons_work, 10))
+				if (cons_it->push_back(cons_work, PROD_TIMEOUT))
 				{
 					delete cons_work;
 					control_wait = 0;
@@ -177,7 +178,7 @@ int main()
 		//init the queues to consumers
 		for (int i = 0; i < THR_CNT; i++)
 		{
-			consumer_end.emplace_front(50);
+			consumer_end.emplace_front(10);
 		}
 		//start consumers
 		consumers.reserve(THR_CNT);
@@ -200,7 +201,7 @@ int main()
 		{
 			curr.join();
 		});
-		std::for_each(consumer_end.begin(), consumer_end.end(), [](lab_queue<task*> curr)
+		std::for_each(consumer_end.begin(), consumer_end.end(), [](lab_queue<task*> &curr)
 		{
 			task *element = nullptr;
 			int curr_size = 0;
