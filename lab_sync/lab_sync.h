@@ -11,6 +11,9 @@
 #ifndef _LAB_SYNC_
 #define _LAB_SYNC_
 
+//**********************************************************QUEUES****************************************************************// 
+
+
 struct queue_status
 {
 	int size;
@@ -40,6 +43,7 @@ private:
 	lab_queue(const lab_queue&);
 	/// Private assignment operator.
 	lab_queue& operator=(const lab_queue&);
+	//exception safe status incrementing
 	class _p_inc
 	{
 	private:
@@ -216,6 +220,8 @@ public:
 	}
 };
 
+//**********************************************************EVENTS****************************************************************//
+
 //for every lab_register exists one event queue, where events are enqueued
 //the queues are conceptually non-blocking for writers, 
 //so they cannot have maximum size that would block the generating event from returning
@@ -233,10 +239,13 @@ template<typename T>
 class lab_event
 {
 private:
+	std::string name;
 	//the bunch of registers the event is registered to
 	std::deque<registration_queue<T>*> r_ques;
+	//r_queue access guard
+	std::mutex r_ques_guard;
 public:
-	lab_event()
+	lab_event(const std::string &name = "") : name(name)
 	{
 	}
 	~lab_event()
@@ -245,11 +254,13 @@ public:
 	//add new registration queue to the event
 	void add_r_que(registration_queue<T>* new_r_q)
 	{
+		std::unique_lock<std::mutex> lck(r_ques_guard);
 		r_ques.push_back(new_r_q);
 	}
 	//remove registration queue from the event
 	bool remove_r_que(registration_queue<T>* removed) //returns true if the event had the searched sync object
 	{
+		std::unique_lock<std::mutex> lck(r_ques_guard);
 		bool found = false;
 		typename std::deque<registration_queue<T>*>::iterator it = r_ques.begin();
 		while (it != r_ques.end())
@@ -267,6 +278,7 @@ public:
 	//fire user event, in case there are registers waiting, they become notified the event has been fired
 	void generate_event(const T& element)
 	{
+		std::unique_lock<std::mutex> lck(r_ques_guard);
 		std::for_each(r_ques.begin(), r_ques.end(), [&](registration_queue<T>* r_que)
 		{
 			std::unique_lock<std::mutex> lock(r_que->mtx);
@@ -294,6 +306,8 @@ private:
 		}
 	};
 	std::set<lab_event<T>*, event_ptr_comparator> registered_events;
+	//controls access to registered_events
+	std::mutex events_guard;
 	//the register's queue
 	registration_queue<T> r_queue;
 public:
@@ -304,6 +318,7 @@ public:
 	{
 		//upon destruction, remove all registered events
 		//this removes the data queue associated with this register
+		std::unique_lock<std::mutex> lck(events_guard);
 		std::for_each(registered_events.begin(), registered_events.end(), [&](lab_event<T>* curr_event)
 		{
 			curr_event->remove_r_que(&r_queue);
@@ -315,6 +330,7 @@ public:
 	//new_event, event to register
 	void register_event(lab_event<T>* new_event)
 	{
+		std::unique_lock<std::mutex> lck(events_guard);
 		new_event->add_r_que(&r_queue);
 		registered_events.insert(new_event);
 	}
@@ -350,7 +366,7 @@ public:
 	void unregister_event(lab_event<T>* new_event)
 	{
 		typename std::set<lab_event<T>*, event_ptr_comparator>::iterator it;
-
+		std::unique_lock<std::mutex> lck(events_guard);
 		for (it = registered_events.begin(); it != registered_events.end();)
 		{
 			if (*it == new_event)

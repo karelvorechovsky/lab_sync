@@ -126,7 +126,8 @@ void q_producer(lab_queue<task*> *command_in, std::forward_list<lab_queue<task*>
 		//once the for loop is over, notify all consumers to terminate
 		std::for_each(consumers->begin(), consumers->end(), [](lab_queue<task*> &curr)
 		{
-			curr.lossy_push_front(new terminate_t());
+			//curr.lossy_push_front(new terminate_t()); would terminate the consumers instantly if they had work
+			curr.push_back(new terminate_t(), -1);
 		});
 	}
 	catch (const std::exception &e)
@@ -156,7 +157,7 @@ void q_consumer(lab_queue<task*> *command_in)
 				{
 					std::unique_lock<std::mutex> lck(glob_lock);
 					//spit some stats
-					std::cout << "thread:" << std::this_thread::get_id() << " has " << curr_size << " pending." << std::endl;
+					std::cout << "thread:" << std::this_thread::get_id() << " has " << curr_size << " tasks pending." << std::endl;
 
 					counter = 0;
 				}
@@ -175,7 +176,13 @@ int main()
 {
 	try
 	{
-		std::cout << "hit key to stop" << std::endl;
+		std::cout 
+			<< "hit key to stop" 
+			<< std::endl
+			<< "starting " 
+			<< THR_CNT 
+			<< " consumers"
+			<< std::endl;
 		//init the command queue to producer
 		lab_queue<task*> command_q(-1);
 		std::forward_list<lab_queue<task*>> consumer_end;
