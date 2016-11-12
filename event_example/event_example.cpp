@@ -39,6 +39,10 @@ public:
 	data_event(std::vector<double> data) : data(data)
 	{
 	}
+	std::vector<double> get_data()
+	{
+		return data;
+	}
 };
 
 
@@ -47,11 +51,13 @@ int main()
 {
 	//sync pbjects
 	std::vector<std::shared_ptr<lab_event<my_event>>> signal_events;
+	std::vector<std::shared_ptr<lab_register<my_event>>> thread_registers;
 	std::shared_ptr<lab_event<my_event>> control_event;
 	//sync objects initiation 
 	control_event = std::make_shared<lab_event<my_event>>("control_event");
 	
 	std::ostringstream s;
+	//create signal events
 	for (int i = 0; i < EVENT_CNT; ++i)
 	{
 		s.str("");
@@ -59,7 +65,29 @@ int main()
 		s << i;
 		signal_events.push_back(std::make_shared<lab_event<my_event>>(s.str()));
 	}
-
+	//for all threads register all events + control event
+	for (int i = 0; i < THR_CNT; ++i)
+	{
+		std::shared_ptr<lab_register<my_event>> curr_register = std::make_shared<lab_register<my_event>>();
+		//register control event
+		curr_register->register_event(control_event.get());
+		std::for_each(signal_events.begin(), signal_events.end(), [&](const std::shared_ptr<lab_event<my_event>> &curr_event)
+		{
+			//and register all events for all threads
+			curr_register->register_event(curr_event.get());
+		});
+		thread_registers.push_back(curr_register);
+	}
+	//at this point all sync objects are done and all registers are registered to all events
+	//firing any event will notify all threads
+	bool exit = false;
+	while (!exit)
+	{
+		std::cout
+			<< "type 1 - 4 to fire given event" << std::endl
+			<< "type \"'14\" to toggle event 1 registration to thread 4, \"23\" to toggle event 2 registration to thread 3 etc." << std::endl;
+		std::cin >> 
+	}
 	return 0;
 }
 

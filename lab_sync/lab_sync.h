@@ -6,8 +6,6 @@
 #include <algorithm>
 #include <set>
 
-
-
 #ifndef _LAB_SYNC_
 #define _LAB_SYNC_
 
