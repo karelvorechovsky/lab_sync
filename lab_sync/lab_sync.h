@@ -219,17 +219,9 @@ public:
 };
 
 //**********************************************************EVENTS****************************************************************//
-
-//for every lab_register exists one event queue, where events are enqueued
-//the queues are conceptually non-blocking for writers, 
-//so they cannot have maximum size that would block the generating event from returning
+//forward declaration of register
 template<typename T>
-struct registration_queue
-{
-	std::mutex mtx;
-	std::condition_variable cnd;
-	std::deque<T> data;
-};
+class lab_register;
 
 //the event object, 
 //for every lab_register it has been registered to, it maintains the register queue to notify registers and send them data
@@ -239,38 +231,42 @@ class lab_event
 private:
 	std::string name;
 	//the bunch of registers the event is registered to
-	std::deque<registration_queue<T>*> r_ques;
-	//r_queue access guard
-	std::mutex r_ques_guard;
+	std::deque<lab_register<T>*> registers;
+	//register access guard
+	std::mutex registers_guard;
 public:
 	lab_event(const std::string &name = "") : name(name)
 	{
 	}
 	~lab_event()
 	{
+		std::for_each(registers.begin(), registers.end(), [&](lab_register<T> *&curr_register)
+		{
+			curr_register->remove_event(this);
+		});
 	}
 	//add new registration queue to the event
-	void add_r_que(registration_queue<T>* new_r_q)
+	void add_register(lab_register<T>* new_r_q)
 	{
-		std::unique_lock<std::mutex> lck(r_ques_guard);
-		r_ques.push_back(new_r_q);
+		std::unique_lock<std::mutex> lck(registers_guard);
+		registers.push_back(new_r_q);
 	}
-	//remove registration queue from the event
-	bool remove_r_que(registration_queue<T>* removed) //returns true if the event had the searched sync object
+	//remove register from the event
+	bool remove_register(lab_register<T>* removed) //returns true if the event had the searched register
 	{
-		std::unique_lock<std::mutex> lck(r_ques_guard);
+		std::unique_lock<std::mutex> lck(registers_guard);
 		bool found = false;
-		typename std::deque<registration_queue<T>*>::iterator it = r_ques.begin();
-		while (it != r_ques.end())
+		typename std::deque<lab_register<T>*>::iterator it = registers.begin();
+		do 
 		{
 			if ((*it) == removed)
 			{
-				it = r_ques.erase(it);
+				it = registers.erase(it);
 				found = true;
 				break;
 			}
 			it++;
-		}
+		} while (it != registers.end());
 		return found;
 	}
 	//fire user event, in case there are registers waiting, they become notified the event has been fired
@@ -290,6 +286,16 @@ public:
 //the register object, 
 //it has it's own registration_queue, that every registered event gets pointer to, so it can notify the waiting register whenever new data is available
 //registration_queue is shared among all events that are registered to such register
+//for every lab_register exists one event queue, where events are enqueued
+//the queues are conceptually non-blocking for writers, 
+//so they cannot have maximum size that would block the generating event from returning
+template<typename T>
+struct registration_queue
+{
+	std::mutex mtx;
+	std::condition_variable cnd;
+	std::deque<T> data;
+};
 template<typename T>
 class lab_register
 {
@@ -307,7 +313,7 @@ private:
 	//controls access to registered_events
 	std::mutex events_guard;
 	//the register's queue
-	registration_queue<T> r_queue;
+	registration_queue<T> r_queue; 
 public:
 	lab_register()
 	{
@@ -319,7 +325,7 @@ public:
 		std::unique_lock<std::mutex> lck(events_guard);
 		std::for_each(registered_events.begin(), registered_events.end(), [&](lab_event<T>* curr_event)
 		{
-			curr_event->remove_r_que(&r_queue);
+			curr_event->remove_register(this);
 		});
 	}
 	//register event, assigns the internal registration_queue to the registered event
@@ -329,7 +335,7 @@ public:
 	void register_event(lab_event<T>* new_event)
 	{
 		std::unique_lock<std::mutex> lck(events_guard);
-		new_event->add_r_que(&r_queue);
+		new_event->add_register(this);
 		registered_events.insert(new_event);
 	}
 	//wait for event
@@ -376,6 +382,13 @@ public:
 			else
 				++it;
 		}
+	}
+	void remove_event(lab_event<T>* new_event)
+	{
+		std::unique_lock<std::mutex> lck(events_guard);
+		typename std::set<lab_event<T>*, event_ptr_comparator>::iterator it;
+		it = registered_events.find(new_event);
+		registered_events.erase(it);
 	}
 };
 

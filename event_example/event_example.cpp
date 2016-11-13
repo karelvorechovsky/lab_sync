@@ -45,7 +45,24 @@ public:
 	}
 };
 
+struct user_input
+{
+	enum command
+	{
+		toggle_reg,
+		fire_event,
+		exit
+	} user_command;
+	int toggle_thread;
+	int toggle_event;
+	int fire_event;
+};
 
+user_input parse_command(const std::string &command)
+{
+	user_input input;
+	return input;
+}
 
 int main()
 {
@@ -55,7 +72,6 @@ int main()
 	std::shared_ptr<lab_event<my_event>> control_event;
 	//sync objects initiation 
 	control_event = std::make_shared<lab_event<my_event>>("control_event");
-	
 	std::ostringstream s;
 	//create signal events
 	for (int i = 0; i < EVENT_CNT; ++i)
@@ -80,13 +96,29 @@ int main()
 	}
 	//at this point all sync objects are done and all registers are registered to all events
 	//firing any event will notify all threads
-	bool exit = false;
-	while (!exit)
+	std::string command;
+	user_input input;
+	std::cout
+		<< "type \"f 2\" to fire event 2" << std::endl
+		<< "type \"t 2 3\" to toggle event 2 registration to thread 3" << std::endl
+		<< "type \"exit\" to quit" << std::endl << std::endl;
+	while (input.user_command != user_input::command::exit)
 	{
-		std::cout
-			<< "type 1 - 4 to fire given event" << std::endl
-			<< "type \"'14\" to toggle event 1 registration to thread 4, \"23\" to toggle event 2 registration to thread 3 etc." << std::endl;
-		std::cin >> 
+		std::getline(std::cin, command);
+		input = parse_command(command);
+		switch (input.user_command)
+		{
+		case user_input::command::fire_event:
+		{
+			break;
+		}
+		case user_input::command::toggle_reg:
+		{
+			break;
+		}
+		default:
+			break;
+		}
 	}
 	return 0;
 }

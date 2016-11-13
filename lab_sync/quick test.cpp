@@ -1,8 +1,8 @@
-#include "lab_sync.h"
+//#include "lab_sync.h"
 #include <iostream>
 
 #define IDLE_TIME rand() % 100
-
+/*
 struct thread_control
 {
 	bool terminate;
@@ -90,10 +90,10 @@ void q_consumer(lab_queue<int> *q)
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
-
+*/
 int main()
 {
-	try
+	/*try
 	{
 		lab_event<int> my_event;
 		lab_event<int> my_event2;
@@ -129,5 +129,9 @@ int main()
 	catch (std::exception &e)
 	{
 		std::cout << e.what();
+	}*/
+	while (false)
+	{
+		std::cout << "meh";
 	}
 }
