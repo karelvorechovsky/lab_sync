@@ -376,7 +376,7 @@ public:
 		{
 			if (*it == new_event)
 			{
-				(*it)->remove_r_que(&r_queue);
+				(*it)->remove_register(this);
 				it = registered_events.erase(it);
 				break;
 			}

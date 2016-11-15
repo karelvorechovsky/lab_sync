@@ -53,7 +53,8 @@ struct user_input
 {
 	enum command
 	{
-		toggle_reg,
+		thr_register,
+		thr_unregister,
 		fire_event,
 		exit
 	} user_command;
@@ -96,10 +97,15 @@ user_input parse_command(std::string& command)
 		input.event_fired = std::stoi(tokens[1]);
 		input.message = tokens[2];
 		break;
-	case 't':
-		input.user_command = user_input::command::toggle_reg;
-		input.toggle_event = std::stoi(tokens[1]);
-		input.toggle_thread = std::stoi(tokens[2]);
+	case 'u':
+		input.user_command = user_input::command::thr_unregister;
+		input.toggle_thread = std::stoi(tokens[1]);
+		input.toggle_event = std::stoi(tokens[2]);
+		break;
+	case 'r':
+		input.user_command = user_input::command::thr_register;
+		input.toggle_thread = std::stoi(tokens[1]);
+		input.toggle_event = std::stoi(tokens[2]);
 		break;
 	}
 	return input;
@@ -108,6 +114,10 @@ user_input parse_command(std::string& command)
 void thread_func(std::shared_ptr<lab_register<std::shared_ptr<my_event>>> &thr_register)
 {
 	std::shared_ptr<my_event> thr_event;
+	{
+		//std::unique_lock<std::mutex> lck(glob_lock);
+		//std::cout << "thread " << std::this_thread::get_id() << " started" << std::endl;
+	}
 	while (true)
 	{
 		thr_register->wait(thr_event, -1);	
@@ -119,67 +129,79 @@ void thread_func(std::shared_ptr<lab_register<std::shared_ptr<my_event>>> &thr_r
 
 int main()
 {
-	//sync objects
-	std::vector<std::shared_ptr<lab_event<std::shared_ptr<my_event>>>> signal_events;
-	std::vector<std::shared_ptr<lab_register<std::shared_ptr<my_event>>>> thread_registers;
-	std::shared_ptr<lab_event<std::shared_ptr<my_event>>> control_event;
-	//sync objects initiation 
-	control_event = std::make_shared<lab_event<std::shared_ptr<my_event>>>("control_event");
-	//make threads
-	std::vector<std::thread> thrds;
-	thrds.reserve(THR_CNT);
-	std::ostringstream s;
-	//create signal events
-	for (int i = 0; i < EVENT_CNT; ++i)
+	try
 	{
-		s.str("");
-		s.clear();
-		s << i;
-		signal_events.push_back(std::make_shared<lab_event<std::shared_ptr<my_event>>>(s.str()));
-	}
-	//for all threads register all events + control event
-	for (int i = 0; i < THR_CNT; ++i)
-	{
-		std::shared_ptr<lab_register<std::shared_ptr<my_event>>> curr_register = std::make_shared<lab_register<std::shared_ptr<my_event>>>();
-		//register control event
-		curr_register->register_event(control_event.get());
-		std::for_each(signal_events.begin(), signal_events.end(), [&](const std::shared_ptr<lab_event<std::shared_ptr<my_event>>> &curr_event)
+		//sync objects
+		std::vector<std::shared_ptr<lab_event<std::shared_ptr<my_event>>>> signal_events;
+		std::vector<std::shared_ptr<lab_register<std::shared_ptr<my_event>>>> thread_registers;
+		std::shared_ptr<lab_event<std::shared_ptr<my_event>>> control_event;
+		//sync objects initiation 
+		control_event = std::make_shared<lab_event<std::shared_ptr<my_event>>>("control_event");
+		//make threads
+		std::vector<std::thread> thrds;
+		thrds.reserve(THR_CNT);
+		std::ostringstream s;
+		//create signal events
+		for (int i = 0; i < EVENT_CNT; ++i)
 		{
-			//and register all events for all threads
-			curr_register->register_event(curr_event.get());
-		});
-		thread_registers.push_back(curr_register);
-		thrds.emplace_back(std::thread(thread_func, curr_register));
-	}
-	//at this point all sync objects are done and all registers are registered to all events
-	//firing any event will notify all threads
-	std::string command;
-	user_input input = user_input();
-	std::cout
-		<< "program does no parameter check" << std::endl
-		<< "type \"f 2 some_message\" to fire event 2 with \"some_message\" as data" << std::endl
-		<< "type \"t 2 3\" to toggle event 2 registration to thread 3" << std::endl
-		<< "type \"exit\" to end program" << std::endl << std::endl;
-	while (input.user_command != user_input::command::exit)
-	{
-		std::getline(std::cin, command);
-		input = parse_command(command);
-		switch (input.user_command)
-		{
-		case user_input::command::fire_event:
-			signal_events[input.event_fired].get()->generate_event(std::make_shared<data_event>(data_event(input.message)));
-			break;
-		case user_input::command::toggle_reg:
-			break;
-		default:
-			break;
+			s.str("");
+			s.clear();
+			s << i;
+			signal_events.push_back(std::make_shared<lab_event<std::shared_ptr<my_event>>>(s.str()));
 		}
+		//for all threads register all events + control event
+		for (int i = 0; i < THR_CNT; ++i)
+		{
+			std::shared_ptr<lab_register<std::shared_ptr<my_event>>> curr_register = std::make_shared<lab_register<std::shared_ptr<my_event>>>();
+			//register control event
+			curr_register->register_event(control_event.get());
+			std::for_each(signal_events.begin(), signal_events.end(), [&](const std::shared_ptr<lab_event<std::shared_ptr<my_event>>> &curr_event)
+			{
+				//and register all events for all threads
+				curr_register->register_event(curr_event.get());
+			});
+			thread_registers.push_back(curr_register);
+			thrds.emplace_back(std::thread(thread_func, curr_register));
+		}
+		//at this point all sync objects are done and all registers are registered to all events
+		//firing any event will notify all threads
+		std::string command;
+		user_input input = user_input();
+		std::cout
+			<< "program does no parameter check" << std::endl
+			<< "type \"f 2 some_message\" to fire event 2 with \"some_message\" as data" << std::endl
+			<< "type \"u 2 3\" to unregister thread 2 from event 3" << std::endl
+			<< "type \"r 2 3\" to register thread 2 to event 3" << std::endl
+			<< "type \"exit\" to end program" << std::endl << std::endl;
+		while (input.user_command != user_input::command::exit)
+		{
+			std::getline(std::cin, command);
+			input = parse_command(command);
+			switch (input.user_command)
+			{
+			case user_input::command::fire_event:
+				signal_events[input.event_fired].get()->generate_event(std::make_shared<data_event>(data_event(input.message)));
+				break;
+			case user_input::command::thr_unregister:
+				thread_registers[input.toggle_thread]->unregister_event(signal_events[input.toggle_event].get());
+				break;
+			case user_input::command::thr_register:
+				thread_registers[input.toggle_thread]->register_event(signal_events[input.toggle_event].get());
+			default:
+				break;
+			}
+		}
+		control_event->generate_event(std::make_shared<terminate_event>(terminate_event()));
+		std::for_each(thrds.begin(), thrds.end(), [](std::thread &curr_thread)
+		{
+			curr_thread.join();
+		});
+		return 0;
 	}
-	control_event->generate_event(std::make_shared<terminate_event>(terminate_event()));
-	std::for_each(thrds.begin(), thrds.end(), [](std::thread &curr_thread)
+	catch (const std::exception &e)
 	{
-		curr_thread.join();
-	});
-	return 0;
+		std::unique_lock<std::mutex> lck(glob_lock);
+		std::cout << e.what() << std::endl;
+	}
 }
 
