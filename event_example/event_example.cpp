@@ -1,3 +1,7 @@
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+
 #include "..\lab_sync\lab_sync.h"
 #include <iostream>
 #include <sstream>
@@ -196,12 +200,13 @@ int main()
 		{
 			curr_thread.join();
 		});
-		return 0;
 	}
 	catch (const std::exception &e)
 	{
 		std::unique_lock<std::mutex> lck(glob_lock);
 		std::cout << e.what() << std::endl;
 	}
+	_CrtDumpMemoryLeaks();
+	return 0;
 }
 
