@@ -272,13 +272,13 @@ public:
 	//fire user event, in case there are registers waiting, they become notified the event has been fired
 	void generate_event(const T& element)
 	{
-		std::unique_lock<std::mutex> lck(r_ques_guard);
-		std::for_each(r_ques.begin(), r_ques.end(), [&](registration_queue<T>* r_que)
+		std::unique_lock<std::mutex> lck(registers_guard);
+		std::for_each(registers.begin(), registers.end(), [&](lab_register<T> *&curr_register)
 		{
-			std::unique_lock<std::mutex> lock(r_que->mtx);
-			r_que->data.push_back(element);
-			if (r_que->data.size() == 1) //if the queue was empty
-				r_que->cnd.notify_one(); //notify the waiting register, every register has it's own cnd, no cnd's are shared among multiple waiters
+			std::unique_lock<std::mutex> lock(curr_register->r_queue.mtx);
+			curr_register->r_queue.data.push_back(element);
+			if (curr_register->r_queue.data.size() == 1) //if the queue was empty
+				curr_register->r_queue.cnd.notify_one(); //notify the waiting register, every register has it's own cnd, no cnd's are shared among multiple waiters
 		});
 	}
 };
@@ -312,9 +312,10 @@ private:
 	std::set<lab_event<T>*, event_ptr_comparator> registered_events;
 	//controls access to registered_events
 	std::mutex events_guard;
-	//the register's queue
-	registration_queue<T> r_queue; 
 public:
+	//the register's queue
+	registration_queue<T> r_queue;
+
 	lab_register()
 	{
 	}
