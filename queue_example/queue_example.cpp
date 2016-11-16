@@ -128,11 +128,11 @@ void q_producer(lab_queue<task*> *command_in, std::forward_list<lab_queue<task*>
 			}
 		}
 		//once the for loop is over, notify all consumers to terminate
-		std::for_each(consumers->begin(), consumers->end(), [](lab_queue<task*> &curr)
+		for (auto &curr : *consumers)
 		{
 			//curr.lossy_push_front(new terminate_t()); would terminate the consumers instantly if they had work
 			curr.push_back(new terminate_t(), -1);
-		});
+		}
 	}
 	catch (const std::exception &e)
 	{
@@ -198,10 +198,10 @@ int main()
 		}
 		//start consumers
 		consumers.reserve(THR_CNT);
-		std::for_each(consumer_end.begin(), consumer_end.end(), [&](lab_queue<task*> &curr)
+		for(auto &curr : consumer_end)
 		{
 			consumers.push_back(std::thread(q_consumer, &curr));
-		});
+		}
 		//start producer
 		std::thread producer_thr(q_producer, &command_q, &consumer_end);
 		
@@ -213,11 +213,11 @@ int main()
 		//wait for the producer to join
 		producer_thr.join();
 		//and wait for the consumers to end as well
-		std::for_each(consumers.begin(), consumers.end(), [](std::thread &curr)
+		for(auto &curr : consumers)
 		{
 			curr.join();
-		});
-		std::for_each(consumer_end.begin(), consumer_end.end(), [](lab_queue<task*> &curr)
+		}
+		for(auto &curr : consumer_end)
 		{
 			task *element = nullptr;
 			int curr_size = 0;
@@ -226,7 +226,7 @@ int main()
 				//delete all elements in queue
 				delete element;
 			}
-		});
+		}
 	}
 	catch (const std::exception &e)
 	{

@@ -159,11 +159,11 @@ int main()
 			std::shared_ptr<lab_register<std::shared_ptr<my_event>>> curr_register = std::make_shared<lab_register<std::shared_ptr<my_event>>>();
 			//register control event
 			curr_register->register_event(control_event.get());
-			std::for_each(signal_events.begin(), signal_events.end(), [&](const std::shared_ptr<lab_event<std::shared_ptr<my_event>>> &curr_event)
+			for(auto &curr_event : signal_events)
 			{
 				//and register all events for all threads
 				curr_register->register_event(curr_event.get());
-			});
+			}
 			thread_registers.push_back(curr_register);
 			thrds.emplace_back(std::thread(thread_func, curr_register));
 		}
@@ -196,10 +196,10 @@ int main()
 			}
 		}
 		control_event->generate_event(std::make_shared<terminate_event>(terminate_event()));
-		std::for_each(thrds.begin(), thrds.end(), [](std::thread &curr_thread)
+		for (auto &curr_thread : thrds)
 		{
 			curr_thread.join();
-		});
+		}
 	}
 	catch (const std::exception &e)
 	{
